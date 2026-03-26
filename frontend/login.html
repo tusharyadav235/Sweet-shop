@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Login – Jiya Lal Halwai</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=Crimson+Pro:wght@300;400;600&family=Noto+Serif+Devanagari:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body { min-height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#2C1810 0%,#4A2015 60%,#2C1810 100%); }
+    .auth-card { background:white; border-radius:28px; padding:48px 40px; width:100%; max-width:440px; box-shadow:0 24px 80px rgba(0,0,0,0.4); }
+    .auth-brand { text-align:center; margin-bottom:36px; }
+    .auth-brand .hindi { font-family:'Noto Serif Devanagari',serif; font-size:1.6rem; color:var(--gold); display:block; }
+    .auth-brand .eng { font-family:var(--font-display); font-style:italic; font-size:1rem; color:#888; }
+    .tab-row { display:flex; margin-bottom:28px; border-radius:12px; overflow:hidden; border:1px solid #f0e0b0; }
+    .tab-btn { flex:1; padding:12px; background:transparent; border:none; cursor:pointer; font-family:var(--font-body); font-size:1rem; color:#888; transition:.3s; }
+    .tab-btn.active { background:#D4A017; color:white; font-weight:600; }
+    .auth-form { display:flex; flex-direction:column; gap:14px; }
+    .auth-form input { padding:14px 16px; border:1.5px solid #e0d0b0; border-radius:12px; font-size:1rem; font-family:var(--font-body); outline:none; transition:border-color .3s; width:100%; }
+    .auth-form input:focus { border-color:#D4A017; }
+    .auth-form .submit-btn { padding:14px; font-size:1rem; border-radius:12px; background:linear-gradient(135deg,#FF6B1A,#D4A017); color:white; border:none; cursor:pointer; font-weight:600; font-family:var(--font-body); transition:.3s; }
+    .auth-form .submit-btn:hover { opacity:.9; }
+    .auth-form .submit-btn:disabled { opacity:0.6; cursor:not-allowed; }
+    .back-link { text-align:center; margin-top:20px; }
+    .back-link a { color:#FF6B1A; text-decoration:none; font-size:0.95rem; }
+    .error-msg { background:#fff0f0; border:1px solid #ffb3b3; color:#c00; padding:12px 16px; border-radius:10px; font-size:0.88rem; display:none; line-height:1.6; }
+    .success-msg { background:#f0fff4; border:1px solid #a3e6b3; color:#1a6632; padding:12px 16px; border-radius:10px; font-size:0.9rem; display:none; }
+    .hint-box { background:#fffbf0; border:1px solid #f0e0b0; border-radius:10px; padding:14px 16px; margin-top:18px; font-size:0.85rem; color:#5C3317; line-height:1.8; }
+    .hint-box strong { color:#2C1810; display:block; margin-bottom:4px; }
+    code { background:#f0e8d8; padding:2px 6px; border-radius:4px; font-size:0.82rem; }
+  </style>
+</head>
+<body>
+  <div class="auth-card">
+    <div class="auth-brand">
+      <span class="hindi">जिया लाल हलवाई</span>
+      <span class="eng">Sign in to your account</span>
+    </div>
+
+    <div class="tab-row">
+      <button class="tab-btn active" onclick="showTab('login')">Login</button>
+      <button class="tab-btn" onclick="showTab('register')">Register</button>
+    </div>
+
+    <!-- LOGIN FORM -->
+    <div id="login-form">
+      <div class="auth-form">
+        <div id="login-error" class="error-msg"></div>
+        <div id="login-success" class="success-msg"></div>
+        <input type="email" id="l-email" placeholder="Email Address" autocomplete="email" />
+        <input type="password" id="l-pass" placeholder="Password" autocomplete="current-password" />
+        <button class="submit-btn" id="login-btn" onclick="doLogin()">Sign In</button>
+      </div>
+      <div class="hint-box">
+        <strong>🔑 Default Admin Login</strong>
+        Email: <code>admin@jiyalalhalwai.com</code><br>
+        Password: <code>admin123</code>
+      </div>
+    </div>
+
+    <!-- REGISTER FORM -->
+    <div id="register-form" style="display:none">
+      <div class="auth-form">
+        <div id="reg-error" class="error-msg"></div>
+        <input type="text" id="r-name" placeholder="Full Name" />
+        <input type="email" id="r-email" placeholder="Email Address" />
+        <input type="tel" id="r-phone" placeholder="Phone Number" />
+        <input type="password" id="r-pass" placeholder="Password (min 6 chars)" />
+        <button class="submit-btn" id="register-btn" onclick="doRegister()">Create Account</button>
+      </div>
+    </div>
+
+    <div class="back-link">
+      <a href="index.html">← Back to Store</a>
+    </div>
+  </div>
+
+  <script>
+    // Always call backend directly on port 8080
+    const API = 'http://localhost:8080/api';
+
+    function showTab(tab) {
+      document.getElementById('login-form').style.display    = tab === 'login'    ? 'block' : 'none';
+      document.getElementById('register-form').style.display = tab === 'register' ? 'block' : 'none';
+      document.querySelectorAll('.tab-btn').forEach((b, i) =>
+        b.classList.toggle('active', (i === 0 && tab === 'login') || (i === 1 && tab === 'register'))
+      );
+    }
+
+    function showError(id, html) {
+      const el = document.getElementById(id);
+      el.innerHTML = html;
+      el.style.display = 'block';
+    }
+
+    async function doLogin() {
+      const email = document.getElementById('l-email').value.trim();
+      const pass  = document.getElementById('l-pass').value;
+      const btn   = document.getElementById('login-btn');
+
+      // Hide previous messages
+      document.getElementById('login-error').style.display  = 'none';
+      document.getElementById('login-success').style.display = 'none';
+
+      if (!email || !pass) {
+        showError('login-error', '⚠️ Please enter both email and password.');
+        return;
+      }
+
+      btn.textContent = 'Signing in...';
+      btn.disabled    = true;
+
+      try {
+        const res = await fetch(`${API}/auth/login`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ email: email, password: pass })
+        });
+
+        // Try to parse JSON response
+        let data = {};
+        try { data = await res.json(); } catch(e) { /* non-JSON response */ }
+
+        if (!res.ok) {
+          showError('login-error',
+            '❌ ' + (data.error || data.message || 'Wrong email or password. Please try again.')
+          );
+          return;
+        }
+
+        // ✅ Login successful
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user',  JSON.stringify(data.user));
+
+        const successEl = document.getElementById('login-success');
+        successEl.textContent   = `✅ Welcome, ${data.user.name}! Redirecting...`;
+        successEl.style.display = 'block';
+
+        setTimeout(() => {
+          window.location.href = (data.user.role === 'ADMIN')
+            ? 'admin/index.html'
+            : 'index.html';
+        }, 700);
+
+      } catch (networkErr) {
+        // This fires when the server is completely unreachable
+        showError('login-error',
+          '❌ Cannot reach the backend server.<br><br>' +
+          '<strong>Fix:</strong> Open a terminal in the <code>backend/</code> folder and run:<br>' +
+          '<code>mvn spring-boot:run</code><br><br>' +
+          'Then try logging in again.'
+        );
+      } finally {
+        btn.textContent = 'Sign In';
+        btn.disabled    = false;
+      }
+    }
+
+    async function doRegister() {
+      const name  = document.getElementById('r-name').value.trim();
+      const email = document.getElementById('r-email').value.trim();
+      const phone = document.getElementById('r-phone').value.trim();
+      const pass  = document.getElementById('r-pass').value;
+      const btn   = document.getElementById('register-btn');
+
+      document.getElementById('reg-error').style.display = 'none';
+
+      if (!name || !email || !pass) {
+        showError('reg-error', '⚠️ Name, email and password are required.');
+        return;
+      }
+      if (pass.length < 6) {
+        showError('reg-error', '⚠️ Password must be at least 6 characters.');
+        return;
+      }
+
+      btn.textContent = 'Creating account...';
+      btn.disabled    = true;
+
+      try {
+        const res = await fetch(`${API}/auth/register`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ name, email, phone, password: pass })
+        });
+
+        let data = {};
+        try { data = await res.json(); } catch(e) {}
+
+        if (!res.ok) {
+          showError('reg-error', '❌ ' + (data.error || 'Registration failed. Email may already be in use.'));
+          return;
+        }
+
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user',  JSON.stringify(data.user));
+        window.location.href = 'index.html';
+
+      } catch (e) {
+        showError('reg-error', '❌ Cannot connect to server. Make sure the backend is running on port 8080.');
+      } finally {
+        btn.textContent = 'Create Account';
+        btn.disabled    = false;
+      }
+    }
+
+    // Submit on Enter key
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      if (document.getElementById('login-form').style.display !== 'none') doLogin();
+      else doRegister();
+    });
+  </script>
+</body>
+</html>

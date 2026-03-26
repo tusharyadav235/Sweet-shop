@@ -1,0 +1,96 @@
+version: '3.9'
+
+services:
+  # ===========================
+  # MySQL Database
+  # ===========================
+  mysql:
+    image: mysql:8.0
+    container_name: jiyalal-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword123}
+      MYSQL_DATABASE: ${DB_NAME:-jiyalal_db}
+      MYSQL_USER: ${DB_USER:-jiyalal}
+      MYSQL_PASSWORD: ${DB_PASS:-sweetpassword123}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d
+    networks:
+      - jiyalal-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-rootpassword123}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ===========================
+  # Spring Boot Backend
+  # ===========================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: jiyalal-backend
+    restart: always
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-jiyalal_db}
+      DB_USER: ${DB_USER:-jiyalal}
+      DB_PASS: ${DB_PASS:-sweetpassword123}
+      JWT_SECRET: ${JWT_SECRET:-JiyaLalHalwaiSecretKey2024SuperSecure@#$%^}
+      UPLOAD_DIR: /app/uploads
+      SPRING_PROFILES_ACTIVE: prod
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - uploads_data:/app/uploads
+    networks:
+      - jiyalal-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/api/products || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  # ===========================
+  # Nginx Frontend
+  # ===========================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: jiyalal-frontend
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - jiyalal-net
+
+# ===========================
+# Volumes
+# ===========================
+volumes:
+  mysql_data:
+    driver: local
+  uploads_data:
+    driver: local
+
+# ===========================
+# Networks
+# ===========================
+networks:
+  jiyalal-net:
+    driver: bridge
