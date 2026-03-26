@@ -1,52 +1,39 @@
 version: '3.9'
 
 services:
-  # ===========================
-  # MySQL Database
-  # ===========================
   mysql:
     image: mysql:8.0
     container_name: jiyalal-mysql
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword123}
-      MYSQL_DATABASE: ${DB_NAME:-jiyalal_db}
-      MYSQL_USER: ${DB_USER:-jiyalal}
-      MYSQL_PASSWORD: ${DB_PASS:-sweetpassword123}
-    ports:
-      - "3306:3306"
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_URL: ${DB_URL}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASS}
     volumes:
       - mysql_data:/var/lib/mysql
       - ./mysql-init:/docker-entrypoint-initdb.d
     networks:
       - jiyalal-net
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-rootpassword123}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 30s
 
-  # ===========================
-  # Spring Boot Backend
-  # ===========================
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile
     container_name: jiyalal-backend
     restart: always
     environment:
       DB_HOST: mysql
       DB_PORT: 3306
-      DB_NAME: ${DB_NAME:-jiyalal_db}
-      DB_USER: ${DB_USER:-jiyalal}
-      DB_PASS: ${DB_PASS:-sweetpassword123}
-      JWT_SECRET: ${JWT_SECRET:-JiyaLalHalwaiSecretKey2024SuperSecure@#$%^}
-      UPLOAD_DIR: /app/uploads
+      DB_URL: ${DB_URL}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      JWT_SECRET: ${JWT_SECRET}
       SPRING_PROFILES_ACTIVE: prod
-    ports:
-      - "8080:8080"
     depends_on:
       mysql:
         condition: service_healthy
@@ -54,43 +41,40 @@ services:
       - uploads_data:/app/uploads
     networks:
       - jiyalal-net
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/api/products || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 90s
+    expose:
+      - "8080"   # internal only (not public)
 
-  # ===========================
-  # Nginx Frontend
-  # ===========================
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
     container_name: jiyalal-frontend
     restart: always
-    ports:
-      - "80:80"
-      - "443:443"
     depends_on:
       backend:
         condition: service_healthy
     networks:
       - jiyalal-net
 
-# ===========================
-# Volumes
-# ===========================
+  nginx:
+    image: nginx:alpine
+    container_name: jiyalal-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - jiyalal-net
+
 volumes:
   mysql_data:
-    driver: local
   uploads_data:
-    driver: local
 
-# ===========================
-# Networks
-# ===========================
 networks:
   jiyalal-net:
     driver: bridge
