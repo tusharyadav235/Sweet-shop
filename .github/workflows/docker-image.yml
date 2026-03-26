@@ -1,42 +1,159 @@
-name: Deploy to EC2
+name: jiya-lal-halwai
 
 on:
   push:
-    branches:
-      - main   # deploy when you push to main
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  BACKEND_IMAGE: tusharyadaav/jiya-lal-halwai-backend
+  FRONTEND_IMAGE: tusharyadaav/jiya-lal-halwai-frontend
 
 jobs:
-  deploy:
+  # ============================================
+  # JOB 1: BUILD & TEST (Backend)
+  # ============================================
+  build-test:
+    name: Build & Test Java Backend
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout code
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Code checkout karo
+        uses: actions/checkout@v4.2.2
 
-      # 2️⃣ Setup SSH
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.7.0
+      - name: Java 17 setup karo
+        uses: actions/setup-java@v4.7.0
         with:
-          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
 
-      # 3️⃣ Deploy to EC2
-      - name: Deploy to EC2
+      - name: Maven build & test karo
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-          
-          cd your-project-folder
+          cd backend
+          mvn clean test -B
 
-          echo "Pulling latest code..."
-          git pull origin main
+      - name: Test results upload karo
+        uses: actions/upload-artifact@v4.6.2
+        if: always()
+        with:
+          name: test-results
+          path: backend/target/surefire-reports/
+          if-no-files-found: ignore
 
-          echo "Stopping old containers..."
-          docker-compose down
+  # ============================================
+  # JOB 2: DOCKER IMAGES BUILD & PUSH
+  # ============================================
+  docker-build-push:
+    name: Docker Images Build & Push
+    runs-on: ubuntu-latest
+    needs: build-test
+    if: github.ref == 'refs/heads/main'
 
-          echo "Building and starting containers..."
-          docker-compose up -d --build
+    steps:
+      - name: Code checkout karo
+        uses: actions/checkout@v4.2.2
 
-          echo "Cleaning unused images..."
-          docker system prune -f
+      - name: Docker Hub login karo
+        uses: docker/login-action@v3.4.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-          EOF
+      - name: Docker Buildx setup karo
+        uses: docker/setup-buildx-action@v3.10.0
+
+      - name: Backend Docker image build & push karo
+        uses: docker/build-push-action@v6.15.0
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ env.BACKEND_IMAGE }}:latest
+            ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Frontend Docker image build & push karo
+        uses: docker/build-push-action@v6.15.0
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:latest
+            ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ============================================
+  # JOB 3: EC2 DEPLOY
+  # ============================================
+  deploy-to-ec2:
+    name: EC2 Par Deploy Karo
+    runs-on: ubuntu-latest
+    needs: docker-build-push
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Code checkout karo
+        uses: actions/checkout@v4.2.2
+
+      - name: docker-compose.yml EC2 par bhejo
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "docker-compose.yml"
+          target: "/home/ubuntu/todo-app"
+
+      - name: EC2 par deploy karo (SSH se)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /home/ubuntu/todo-app
+
+            # Purane containers band karo
+            docker compose down --remove-orphans
+
+            # Purani images force delete karo
+            docker rmi tusharyadaav/jiya-lal-halwai-backend:latest 2>/dev/null || true
+            docker rmi tusharyadaav/jiya-lal-halwai-frontend:latest 2>/dev/null || true
+
+            # Docker Hub se bilkul fresh images pull karo
+            docker pull tusharyadaav/jiya-lal-halwai-backend:latest
+            docker pull tusharyadaav/jiya-lal-halwai-frontend:latest
+
+            # Nayi images se containers start karo
+            docker compose up -d
+
+            # Health check — backend ready hone ka wait karo
+            sleep 15
+            echo "Health check..."
+            curl -f http://localhost:8080/api/todos/health || exit 1
+            echo "Deploy successful!"
+
+            # Dangling images saaf karo
+            docker image prune -f
+
+  # ============================================
+  # JOB 4: DEPLOY NOTIFICATION
+  # ============================================
+  notify:
+    name: Deploy Notification
+    runs-on: ubuntu-latest
+    needs: deploy-to-ec2
+    if: always()
+
+    steps:
+      - name: Success message
+        if: needs.deploy-to-ec2.result == 'success'
+        run: echo "✅ Deploy ho gaya! App EC2 par chal raha hai."
+
+      - name: Failure message
+        if: needs.deploy-to-ec2.result == 'failure'
+        run: echo "❌ Deploy fail ho gaya. Logs check karo!"
