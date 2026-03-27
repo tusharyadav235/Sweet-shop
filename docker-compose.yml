@@ -5,6 +5,8 @@ services:
     image: tusharyadaav/jiya-lal-halwai-backend:latest
     container_name: jiyalal-backend
     restart: always
+    env_file:
+      - .env
     environment:
       SPRING_DATASOURCE_URL: ${DB_URL}
       SPRING_DATASOURCE_USERNAME: ${DB_USER}
