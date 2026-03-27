@@ -106,7 +106,7 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           source: "docker-compose.yml"
-          target: "/home/ubuntu/todo-app"
+          target: "/home/ubuntu/jiya-lal-halwai"
 
       - name: EC2 par deploy karo (SSH se)
         uses: appleboy/ssh-action@v1.2.0
@@ -115,7 +115,7 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd /home/ubuntu/todo-app
+            cd /home/ubuntu/jiya-lal-halwai
 
             # Purane containers band karo
             docker compose down --remove-orphans
@@ -134,7 +134,7 @@ jobs:
             # Health check — backend ready hone ka wait karo
             sleep 15
             echo "Health check..."
-            curl -f http://localhost:8080/api/todos/health || exit 1
+            curl http://localhost/api/todos/health
             echo "Deploy successful!"
 
             # Dangling images saaf karo
