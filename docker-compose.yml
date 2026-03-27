@@ -2,8 +2,7 @@ version: '3.9'
 
 services:
   backend:
-    build:
-      context: ./backend
+    image: tusharyadaav/jiya-lal-halwai-backend:latest
     container_name: jiyalal-backend
     restart: always
     environment:
@@ -20,8 +19,7 @@ services:
       - "8080"
 
   frontend:
-    build:
-      context: ./frontend
+    image: tusharyadaav/jiya-lal-halwai-frontend:latest
     container_name: jiyalal-frontend
     restart: always
     depends_on:
